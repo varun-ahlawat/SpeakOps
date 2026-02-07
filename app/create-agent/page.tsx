@@ -1,8 +1,6 @@
 "use client"
 
-import React from "react"
-
-import { useState, useCallback } from "react"
+import React, { useState, useCallback, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   IconUpload,
@@ -18,6 +16,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { useAuth } from "@/lib/auth-context"
+import { createAgent, uploadFiles } from "@/lib/api-client"
 
 const TOTAL_STEPS = 3
 
@@ -219,7 +219,7 @@ function StepWebsiteUrl({
   )
 }
 
-function StepConfirmation({ isCreating }: { isCreating: boolean }) {
+function StepConfirmation({ isCreating, progressValue, error }: { isCreating: boolean; progressValue: number; error: string }) {
   return (
     <div className="flex flex-col items-center gap-6 text-center">
       <div className="flex size-20 items-center justify-center rounded-full bg-muted">
@@ -236,8 +236,14 @@ function StepConfirmation({ isCreating }: { isCreating: boolean }) {
 
       {isCreating && (
         <div className="w-full max-w-xs">
-          <Progress value={66} className="h-2" />
+          <Progress value={progressValue} className="h-2" />
           <p className="mt-2 text-sm text-muted-foreground">Setting up your agent...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
         </div>
       )}
     </div>
@@ -246,10 +252,19 @@ function StepConfirmation({ isCreating }: { isCreating: boolean }) {
 
 export default function CreateAgentPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [currentStep, setCurrentStep] = useState(0)
   const [files, setFiles] = useState<File[]>([])
   const [websiteUrl, setWebsiteUrl] = useState("")
   const [isCreating, setIsCreating] = useState(false)
+  const [progressValue, setProgressValue] = useState(0)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login")
+    }
+  }, [user, authLoading, router])
 
   const progress = ((currentStep + 1) / TOTAL_STEPS) * 100
 
@@ -259,8 +274,31 @@ export default function CreateAgentPage() {
     } else {
       // Final step: create agent
       setIsCreating(true)
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-      router.push("/dashboard")
+      setError("")
+      setProgressValue(10)
+
+      try {
+        // 1. Create agent in BigQuery
+        setProgressValue(30)
+        const agentName = `Agent${Date.now().toString(36)}`
+        const agent = await createAgent({
+          name: agentName,
+          context: "",
+          website_url: websiteUrl ? `https://${websiteUrl}` : undefined,
+        })
+
+        // 2. Upload files if any
+        if (files.length > 0) {
+          setProgressValue(60)
+          await uploadFiles(agent.id, files)
+        }
+
+        setProgressValue(100)
+        router.push("/dashboard")
+      } catch (err: any) {
+        setError(err.message || "Failed to create agent")
+        setIsCreating(false)
+      }
     }
   }
 
@@ -268,6 +306,14 @@ export default function CreateAgentPage() {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    )
   }
 
   return (
@@ -304,7 +350,7 @@ export default function CreateAgentPage() {
               <StepWebsiteUrl url={websiteUrl} onUrlChange={setWebsiteUrl} />
             )}
             {currentStep === 2 && (
-              <StepConfirmation isCreating={isCreating} />
+              <StepConfirmation isCreating={isCreating} progressValue={progressValue} error={error} />
             )}
           </div>
 

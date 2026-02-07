@@ -29,23 +29,24 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
-import { mockCallsPerDay } from "@/lib/mock-data"
+import type { Agent } from "@/lib/types"
 
-const chartConfig = {
-  calls: {
-    label: "Calls",
-  },
-  agent1: {
-    label: "Agent1",
-    color: "var(--primary)",
-  },
-  agent2: {
-    label: "Agent2",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig
+// Generate colors for dynamic agents
+const COLORS = [
+  "var(--primary)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+]
 
-export function ChartAreaInteractive() {
+export function ChartAreaInteractive({
+  data,
+  agents,
+}: {
+  data: { date: string; [key: string]: string | number }[]
+  agents: Agent[]
+}) {
   const isMobile = useIsMobile()
   const [timeRange, setTimeRange] = React.useState("30d")
 
@@ -55,16 +56,24 @@ export function ChartAreaInteractive() {
     }
   }, [isMobile])
 
-  const filteredData = mockCallsPerDay.filter((item) => {
-    const date = new Date(item.date)
-    const referenceDate = new Date("2026-02-07")
-    let daysToSubtract = 30
-    if (timeRange === "7d") {
-      daysToSubtract = 7
-    } else if (timeRange === "14d") {
-      daysToSubtract = 14
+  // Build chart config dynamically from agents
+  const chartConfig: ChartConfig = {
+    calls: { label: "Calls" },
+  }
+  agents.forEach((agent, i) => {
+    chartConfig[agent.name] = {
+      label: agent.name,
+      color: COLORS[i % COLORS.length],
     }
-    const startDate = new Date(referenceDate)
+  })
+
+  const filteredData = data.filter((item) => {
+    const date = new Date(item.date)
+    const now = new Date()
+    let daysToSubtract = 30
+    if (timeRange === "7d") daysToSubtract = 7
+    else if (timeRange === "14d") daysToSubtract = 14
+    const startDate = new Date(now)
     startDate.setDate(startDate.getDate() - daysToSubtract)
     return date >= startDate
   })
@@ -120,30 +129,20 @@ export function ChartAreaInteractive() {
         >
           <AreaChart data={filteredData}>
             <defs>
-              <linearGradient id="fillAgent1" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-agent1)"
-                  stopOpacity={1.0}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-agent1)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-              <linearGradient id="fillAgent2" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-agent2)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-agent2)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
+              {agents.map((agent, i) => (
+                <linearGradient key={agent.id} id={`fill-${agent.name}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor={COLORS[i % COLORS.length]}
+                    stopOpacity={1.0}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={COLORS[i % COLORS.length]}
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+              ))}
             </defs>
             <CartesianGrid vertical={false} />
             <XAxis
@@ -174,20 +173,16 @@ export function ChartAreaInteractive() {
                 />
               }
             />
-            <Area
-              dataKey="agent2"
-              type="natural"
-              fill="url(#fillAgent2)"
-              stroke="var(--color-agent2)"
-              stackId="a"
-            />
-            <Area
-              dataKey="agent1"
-              type="natural"
-              fill="url(#fillAgent1)"
-              stroke="var(--color-agent1)"
-              stackId="a"
-            />
+            {agents.map((agent, i) => (
+              <Area
+                key={agent.id}
+                dataKey={agent.name}
+                type="natural"
+                fill={`url(#fill-${agent.name})`}
+                stroke={COLORS[i % COLORS.length]}
+                stackId="a"
+              />
+            ))}
           </AreaChart>
         </ChartContainer>
       </CardContent>
