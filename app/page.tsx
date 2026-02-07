@@ -1,13 +1,62 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import Link from "next/link"
-import { IconArrowRight } from "@tabler/icons-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { IconBrandGoogle } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth-context"
+import { fetchAgents, createUser } from "@/lib/api-client"
 
 const Silk = dynamic(() => import("@/components/silk"), { ssr: false })
 
 export default function LandingPage() {
+  const router = useRouter()
+  const { user, loading, signInWithGoogle } = useAuth()
+  const [signingIn, setSigningIn] = useState(false)
+  const [error, setError] = useState("")
+
+  // If already authed, redirect to dashboard
+  if (!loading && user) {
+    router.push("/dashboard")
+    return null
+  }
+
+  const handleGoogleSignIn = async () => {
+    setSigningIn(true)
+    setError("")
+
+    try {
+      const firebaseUser = await signInWithGoogle()
+
+      // Ensure user exists in BigQuery (first-time signup creates the record)
+      try {
+        await createUser(
+          firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+          firebaseUser.email || ""
+        )
+      } catch {
+        // 409 = user already exists, that's fine
+      }
+
+      // Route based on whether they have agents
+      const agents = await fetchAgents()
+      if (agents.length > 0) {
+        router.push("/dashboard")
+      } else {
+        router.push("/create-agent")
+      }
+    } catch (err: any) {
+      if (err?.code === "auth/popup-closed-by-user") {
+        // User closed the popup, not an error
+      } else {
+        setError(err.message || "Sign in failed")
+      }
+    } finally {
+      setSigningIn(false)
+    }
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-foreground">
       {/* Silk Background */}
@@ -24,17 +73,14 @@ export default function LandingPage() {
         <header className="flex items-center justify-between px-6 py-5 md:px-12 lg:px-20">
           <span className="text-xl font-bold text-primary-foreground">SayOps</span>
 
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" asChild className="text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground">
-              <Link href="/login">Log In</Link>
-            </Button>
-            <Button asChild className="bg-primary-foreground text-foreground hover:bg-primary-foreground/90">
-              <Link href="/signup">
-                Get Started
-                <IconArrowRight className="ml-1 size-4" />
-              </Link>
-            </Button>
-          </div>
+          <Button
+            onClick={handleGoogleSignIn}
+            disabled={signingIn || loading}
+            className="bg-primary-foreground text-foreground hover:bg-primary-foreground/90"
+          >
+            <IconBrandGoogle className="mr-2 size-4" />
+            {signingIn ? "Signing in..." : "Continue with Google"}
+          </Button>
         </header>
 
         {/* Hero Section */}
@@ -47,16 +93,20 @@ export default function LandingPage() {
             From answering calls to completing requests, your AI handles the entire conversation
           </p>
 
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-            <Button size="lg" asChild className="bg-primary-foreground text-foreground hover:bg-primary-foreground/90 h-12 px-8 text-base">
-              <Link href="/signup">
-                Start Free Trial
-                <IconArrowRight className="ml-2 size-4" />
-              </Link>
+          <div className="mt-10 flex flex-col items-center gap-4">
+            <Button
+              size="lg"
+              onClick={handleGoogleSignIn}
+              disabled={signingIn || loading}
+              className="bg-primary-foreground text-foreground hover:bg-primary-foreground/90 h-12 px-8 text-base"
+            >
+              <IconBrandGoogle className="mr-2 size-5" />
+              {signingIn ? "Signing in..." : "Continue with Google"}
             </Button>
-            <Button size="lg" variant="outline" asChild className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10 h-12 px-8 text-base bg-transparent">
-              <Link href="/login">Sign In to Dashboard</Link>
-            </Button>
+
+            {error && (
+              <p className="text-sm text-red-400">{error}</p>
+            )}
           </div>
 
           <div className="mt-16 flex items-center gap-8 text-sm text-primary-foreground/50">
@@ -67,8 +117,6 @@ export default function LandingPage() {
             <span className="hidden sm:inline">Cancel anytime</span>
           </div>
         </main>
-
-
       </div>
     </div>
   )

@@ -1,14 +1,10 @@
 "use client"
 
-import React from "react"
-
-import { useState } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { IconArrowLeft } from "@tabler/icons-react"
+import { IconArrowLeft, IconBrandGoogle } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Card,
   CardContent,
@@ -16,25 +12,44 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useAuth } from "@/lib/auth-context"
+import { fetchAgents, createUser } from "@/lib/api-client"
 
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const { user, loading, signInWithGoogle } = useAuth()
+  const [signingIn, setSigningIn] = useState(false)
+  const [error, setError] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
-    // Simulate: if agent exists go to dashboard, else go to agent creation
-    const hasAgent = true // mock: user has agent
-    if (hasAgent) {
-      router.push("/dashboard")
-    } else {
-      router.push("/create-agent")
+  if (!loading && user) {
+    router.push("/dashboard")
+    return null
+  }
+
+  const handleGoogleSignIn = async () => {
+    setSigningIn(true)
+    setError("")
+
+    try {
+      const firebaseUser = await signInWithGoogle()
+
+      try {
+        await createUser(
+          firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+          firebaseUser.email || ""
+        )
+      } catch {
+        // 409 = already exists
+      }
+
+      const agents = await fetchAgents()
+      router.push(agents.length > 0 ? "/dashboard" : "/create-agent")
+    } catch (err: any) {
+      if (err?.code !== "auth/popup-closed-by-user") {
+        setError(err.message || "Sign in failed")
+      }
+    } finally {
+      setSigningIn(false)
     }
   }
 
@@ -52,44 +67,23 @@ export default function LoginPage() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>
-              Sign in to manage your AI agents
-            </CardDescription>
+            <CardDescription>Sign in to manage your AI agents</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+          <CardContent className="flex flex-col gap-4">
+            {error && (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
               </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="mt-2 w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Log In"}
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                {"Don't have an account? "}
-                <Link href="/signup" className="font-medium text-foreground underline underline-offset-4 hover:text-foreground/80">
-                  Sign up
-                </Link>
-              </p>
-            </form>
+            )}
+            <Button
+              onClick={handleGoogleSignIn}
+              disabled={signingIn || loading}
+              className="w-full"
+              size="lg"
+            >
+              <IconBrandGoogle className="mr-2 size-5" />
+              {signingIn ? "Signing in..." : "Continue with Google"}
+            </Button>
           </CardContent>
         </Card>
       </div>

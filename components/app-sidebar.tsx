@@ -5,7 +5,6 @@ import {
   IconChartBar,
   IconDashboard,
   IconHelp,
-  IconInnerShadowTop,
   IconPhone,
   IconSettings,
   IconSearch,
@@ -27,56 +26,62 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
 } from "@/components/ui/sidebar"
-import { mockAgents } from "@/lib/mock-data"
+import { useAuth } from "@/lib/auth-context"
+import type { Agent } from "@/lib/types"
 
-const data = {
-  user: {
-    name: "Acme Corp",
-    email: "admin@acmecorp.com",
-    avatar: "/avatars/shadcn.jpg",
+const navMain = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: IconDashboard,
   },
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: IconDashboard,
-    },
-    {
-      title: "Call History",
-      url: "/dashboard?tab=calls",
-      icon: IconPhone,
-    },
-    {
-      title: "Analytics",
-      url: "/dashboard?tab=analytics",
-      icon: IconChartBar,
-    },
-    {
-      title: "Token Usage",
-      url: "/dashboard?tab=tokens",
-      icon: IconCoin,
-    },
-    {
-      title: "Agent Settings",
-      url: "/dashboard?tab=settings",
-      icon: IconSettings,
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: IconSearch,
-    },
-  ],
-}
+  {
+    title: "Call History",
+    url: "/dashboard?tab=calls",
+    icon: IconPhone,
+  },
+  {
+    title: "Analytics",
+    url: "/dashboard?tab=analytics",
+    icon: IconChartBar,
+  },
+  {
+    title: "Token Usage",
+    url: "/dashboard?tab=tokens",
+    icon: IconCoin,
+  },
+  {
+    title: "Agent Settings",
+    url: "/dashboard?tab=settings",
+    icon: IconSettings,
+  },
+]
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+const navSecondary = [
+  {
+    title: "Get Help",
+    url: "#",
+    icon: IconHelp,
+  },
+  {
+    title: "Search",
+    url: "#",
+    icon: IconSearch,
+  },
+]
+
+export function AppSidebar({
+  agents = [],
+  ...props
+}: React.ComponentProps<typeof Sidebar> & { agents?: Agent[] }) {
+  const { user } = useAuth()
+
+  const userData = {
+    name: user?.displayName || user?.email?.split("@")[0] || "User",
+    email: user?.email || "",
+    avatar: user?.photoURL || "",
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -94,13 +99,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
 
         {/* Agent Switcher */}
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>Agents</SidebarGroupLabel>
           <SidebarMenu>
-            {mockAgents.map((agent) => (
+            {agents.map((agent) => (
               <SidebarMenuItem key={agent.id}>
                 <SidebarMenuButton asChild>
                   <a href={`/dashboard?agent=${agent.id}`}>
@@ -113,10 +118,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
         </SidebarGroup>
 
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={userData} />
       </SidebarFooter>
     </Sidebar>
   )

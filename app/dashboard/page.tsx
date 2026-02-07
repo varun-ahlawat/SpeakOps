@@ -1,8 +1,7 @@
 "use client"
 
-import React from "react"
-
-import { useSearchParams } from "next/navigation"
+import React, { useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
@@ -36,12 +35,14 @@ import {
   IconSettings,
   IconDashboard,
 } from "@tabler/icons-react"
-import { mockCallHistory, mockAgents } from "@/lib/mock-data"
+import { useAuth } from "@/lib/auth-context"
+import { fetchAgents, fetchCalls, fetchStats } from "@/lib/api-client"
+import type { Agent, CallHistoryEntryWithTurns, DashboardStats } from "@/lib/types"
 
-function TokenUsageCard() {
+function TokenUsageCard({ agents }: { agents: Agent[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2">
-      {mockAgents.map((agent) => (
+      {agents.map((agent) => (
         <Card key={agent.id}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -58,11 +59,11 @@ function TokenUsageCard() {
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Tokens Used</span>
                   <span className="font-medium tabular-nums">
-                    {(agent.tokenUsage / 1000).toFixed(1)}K
+                    {(agent.token_usage / 1000).toFixed(1)}K
                   </span>
                 </div>
                 <Progress
-                  value={(agent.tokenUsage / 1000000) * 100}
+                  value={(agent.token_usage / 1000000) * 100}
                   className="h-2"
                 />
               </div>
@@ -70,11 +71,11 @@ function TokenUsageCard() {
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Budget Used</span>
                   <span className="font-medium tabular-nums">
-                    ${agent.moneySpent.toFixed(2)}
+                    ${agent.money_spent.toFixed(2)}
                   </span>
                 </div>
                 <Progress
-                  value={(agent.moneySpent / 200) * 100}
+                  value={(agent.money_spent / 200) * 100}
                   className="h-2"
                 />
               </div>
@@ -82,13 +83,15 @@ function TokenUsageCard() {
                 <div className="rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">Total Calls</p>
                   <p className="text-lg font-semibold tabular-nums">
-                    {agent.totalCalls.toLocaleString()}
+                    {agent.total_calls.toLocaleString()}
                   </p>
                 </div>
                 <div className="rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">Avg Tokens/Call</p>
                   <p className="text-lg font-semibold tabular-nums">
-                    {Math.round(agent.tokenUsage / agent.totalCalls).toLocaleString()}
+                    {agent.total_calls > 0
+                      ? Math.round(agent.token_usage / agent.total_calls).toLocaleString()
+                      : "0"}
                   </p>
                 </div>
               </div>
@@ -102,13 +105,62 @@ function TokenUsageCard() {
 
 function DashboardContent() {
   const searchParams = useSearchParams()
-  const activeTab = searchParams.get("tab") || "overview"
-  const agentId = searchParams.get("agent") || "agent-1"
-  const selectedAgent = mockAgents.find((a) => a.id === agentId) || mockAgents[0]
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
 
-  const agentCalls = mockCallHistory.filter(
-    (call) => call.agentId === agentId
-  )
+  const activeTab = searchParams.get("tab") || "overview"
+  const agentId = searchParams.get("agent") || ""
+
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [calls, setCalls] = useState<CallHistoryEntryWithTurns[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const selectedAgent = agentId
+    ? agents.find((a) => a.id === agentId) || agents[0]
+    : agents[0]
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user) {
+      router.push("/login")
+      return
+    }
+
+    async function load() {
+      try {
+        const [agentsData, statsData] = await Promise.all([
+          fetchAgents(),
+          fetchStats(),
+        ])
+        setAgents(agentsData)
+        setStats(statsData)
+
+        // Load calls for the selected agent (or first agent)
+        const targetAgentId = agentId || agentsData[0]?.id
+        if (targetAgentId) {
+          const callsData = await fetchCalls(targetAgentId)
+          setCalls(callsData)
+        }
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    load()
+  }, [user, authLoading, agentId, router])
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-muted-foreground">Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  if (!user) return null
 
   return (
     <SidebarProvider
@@ -119,7 +171,7 @@ function DashboardContent() {
         } as React.CSSProperties
       }
     >
-      <AppSidebar variant="inset" />
+      <AppSidebar variant="inset" agents={agents} />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
@@ -163,25 +215,25 @@ function DashboardContent() {
                 </div>
 
                 <TabsContent value="overview" className="flex flex-col gap-4 md:gap-6">
-                  <SectionCards />
+                  {stats && <SectionCards stats={stats} agents={agents} />}
                   <div className="px-4 lg:px-6">
-                    <ChartAreaInteractive />
+                    {stats && <ChartAreaInteractive data={stats.calls_per_day} agents={agents} />}
                   </div>
                   <div className="px-4 lg:px-6">
-                    <CallHistoryTable calls={mockCallHistory.slice(0, 4)} />
+                    <CallHistoryTable calls={calls.slice(0, 4)} />
                   </div>
                 </TabsContent>
 
                 <TabsContent value="calls" className="flex flex-col gap-4 md:gap-6">
                   <div className="px-4 lg:px-6">
-                    <CallHistoryTable calls={agentCalls.length > 0 ? agentCalls : mockCallHistory} />
+                    <CallHistoryTable calls={calls} />
                   </div>
                 </TabsContent>
 
                 <TabsContent value="analytics" className="flex flex-col gap-4 md:gap-6">
-                  <SectionCards />
+                  {stats && <SectionCards stats={stats} agents={agents} />}
                   <div className="px-4 lg:px-6">
-                    <ChartAreaInteractive />
+                    {stats && <ChartAreaInteractive data={stats.calls_per_day} agents={agents} />}
                   </div>
                   {/* Weekly/Monthly Summary */}
                   <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-3">
@@ -189,7 +241,7 @@ function DashboardContent() {
                       <CardHeader>
                         <CardDescription>This Week</CardDescription>
                         <CardTitle className="text-2xl font-semibold tabular-nums">
-                          387
+                          {stats?.weekly_calls.toLocaleString() || "0"}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -202,25 +254,25 @@ function DashboardContent() {
                       <CardHeader>
                         <CardDescription>This Month</CardDescription>
                         <CardTitle className="text-2xl font-semibold tabular-nums">
-                          1,810
+                          {stats?.monthly_calls.toLocaleString() || "0"}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground">
-                          Total calls in February
+                          Total calls this month
                         </p>
                       </CardContent>
                     </Card>
                     <Card>
                       <CardHeader>
-                        <CardDescription>Peak Hour</CardDescription>
+                        <CardDescription>Total Agents</CardDescription>
                         <CardTitle className="text-2xl font-semibold tabular-nums">
-                          2-3 PM
+                          {agents.length}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground">
-                          Highest call volume time
+                          {agents.filter((a) => a.status === "active").length} active
                         </p>
                       </CardContent>
                     </Card>
@@ -228,11 +280,11 @@ function DashboardContent() {
                 </TabsContent>
 
                 <TabsContent value="tokens" className="flex flex-col gap-4 md:gap-6">
-                  <TokenUsageCard />
+                  <TokenUsageCard agents={agents} />
                 </TabsContent>
 
                 <TabsContent value="settings" className="flex flex-col gap-4 md:gap-6">
-                  <AgentSettings agent={selectedAgent} />
+                  {selectedAgent && <AgentSettings agent={selectedAgent} />}
                 </TabsContent>
               </Tabs>
             </div>

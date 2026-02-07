@@ -9,20 +9,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import type { Agent, DashboardStats } from "@/lib/types"
 
-export function SectionCards() {
+export function SectionCards({ stats, agents }: { stats: DashboardStats; agents: Agent[] }) {
   return (
     <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
       <Card className="@container/card">
         <CardHeader>
           <CardDescription>Total Calls</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            1,810
+            {stats.total_calls.toLocaleString()}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IconTrendingUp />
-              +18.2%
+              All time
             </Badge>
           </CardAction>
         </CardHeader>
@@ -31,7 +32,7 @@ export function SectionCards() {
             Calls handled across all agents <IconPhone className="size-4" />
           </div>
           <div className="text-muted-foreground">
-            Last 30 days
+            {agents.length} agent{agents.length !== 1 ? "s" : ""} active
           </div>
         </CardFooter>
       </Card>
@@ -39,21 +40,21 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Calls Today</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            64
+            {stats.calls_today.toLocaleString()}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IconTrendingUp />
-              +8.3%
+              Today
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Active day for both agents <IconTrendingUp className="size-4" />
+            Calls handled today <IconTrendingUp className="size-4" />
           </div>
           <div className="text-muted-foreground">
-            Agent1: 45 / Agent2: 19
+            Across all agents
           </div>
         </CardFooter>
       </Card>
@@ -61,12 +62,16 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Token Usage</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            1.31M
+            {stats.total_tokens >= 1000000
+              ? `${(stats.total_tokens / 1000000).toFixed(2)}M`
+              : stats.total_tokens >= 1000
+                ? `${(stats.total_tokens / 1000).toFixed(1)}K`
+                : stats.total_tokens.toLocaleString()}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IconTrendingUp />
-              +5.7%
+              Total
             </Badge>
           </CardAction>
         </CardHeader>
@@ -75,7 +80,7 @@ export function SectionCards() {
             Total tokens consumed <IconCoin className="size-4" />
           </div>
           <div className="text-muted-foreground">
-            Across all agents this month
+            Across all agents
           </div>
         </CardFooter>
       </Card>
@@ -83,21 +88,21 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription>Money Spent</CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            $191.70
+            ${stats.total_money_spent.toFixed(2)}
           </CardTitle>
           <CardAction>
             <Badge variant="outline">
               <IconTrendingUp />
-              +3.2%
+              Total
             </Badge>
           </CardAction>
         </CardHeader>
         <CardFooter className="flex-col items-start gap-1.5 text-sm">
           <div className="line-clamp-1 flex gap-2 font-medium">
-            Within budget this month <IconCurrencyDollar className="size-4" />
+            Total spending <IconCurrencyDollar className="size-4" />
           </div>
           <div className="text-muted-foreground">
-            Agent1: $124.50 / Agent2: $67.20
+            {agents.map((a) => `${a.name}: $${a.money_spent.toFixed(2)}`).join(" / ")}
           </div>
         </CardFooter>
       </Card>

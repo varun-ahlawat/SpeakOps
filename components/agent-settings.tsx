@@ -20,23 +20,33 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import type { Agent } from "@/lib/mock-data"
+import { updateAgent } from "@/lib/api-client"
+import type { Agent } from "@/lib/types"
 
 export function AgentSettings({ agent }: { agent: Agent }) {
   const [context, setContext] = React.useState(agent.context)
   const [maxCallTime, setMaxCallTime] = React.useState(
-    String(agent.maxCallTime)
+    String(agent.max_call_time)
   )
   const [cellularEnabled, setCellularEnabled] = React.useState(
-    agent.cellularEnabled
+    agent.cellular_enabled
   )
+  const [saving, setSaving] = React.useState(false)
 
-  const handleSave = () => {
-    toast.promise(new Promise((resolve) => setTimeout(resolve, 1000)), {
-      loading: "Saving settings...",
-      success: "Settings saved successfully",
-      error: "Failed to save settings",
-    })
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await updateAgent(agent.id, {
+        context,
+        max_call_time: Number(maxCallTime),
+        cellular_enabled: cellularEnabled,
+      })
+      toast.success("Settings saved successfully")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -51,7 +61,7 @@ export function AgentSettings({ agent }: { agent: Agent }) {
             <div>
               <CardTitle>{agent.name}</CardTitle>
               <CardDescription>
-                Created {new Date(agent.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                Created {new Date(agent.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               </CardDescription>
             </div>
           </div>
@@ -149,9 +159,9 @@ export function AgentSettings({ agent }: { agent: Agent }) {
 
       {/* Save Button */}
       <div className="flex justify-end pb-6">
-        <Button onClick={handleSave}>
+        <Button onClick={handleSave} disabled={saving}>
           <IconDeviceFloppy className="mr-2 size-4" />
-          Save Settings
+          {saving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </div>

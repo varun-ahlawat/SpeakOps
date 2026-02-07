@@ -1,11 +1,5 @@
 "use client"
 
-import { CollapsibleContent } from "@/components/ui/collapsible"
-
-import { CollapsibleTrigger } from "@/components/ui/collapsible"
-
-import { Collapsible } from "@/components/ui/collapsible"
-
 import * as React from "react"
 import {
   IconChevronDown,
@@ -36,9 +30,15 @@ import {
 } from "@/components/ui/table"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { CallHistoryEntry } from "@/lib/mock-data"
+import type { CallHistoryEntryWithTurns } from "@/lib/types"
 
-function CallRow({ call }: { call: CallHistoryEntry }) {
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${String(secs).padStart(2, "0")}`
+}
+
+function CallRow({ call }: { call: CallHistoryEntryWithTurns }) {
   const [isOpen, setIsOpen] = React.useState(false)
   const timestamp = new Date(call.timestamp)
 
@@ -68,7 +68,7 @@ function CallRow({ call }: { call: CallHistoryEntry }) {
           {format(timestamp, "h:mm a")}
         </TableCell>
         <TableCell>
-          <Badge variant="outline">{call.duration}</Badge>
+          <Badge variant="outline">{formatDuration(call.duration_seconds)}</Badge>
         </TableCell>
         <TableCell className="max-w-[300px] truncate text-muted-foreground">
           {call.summary}
@@ -84,21 +84,21 @@ function CallRow({ call }: { call: CallHistoryEntry }) {
               </p>
               <h4 className="mb-3 text-sm font-medium">Conversation</h4>
               <div className="flex flex-col gap-3">
-                {call.conversation.map((turn, index) => (
+                {(call.conversation || []).map((turn, index) => (
                   <div
                     key={index}
                     className={`flex gap-3 ${
-                      turn.turn === "Agent" ? "flex-row-reverse" : ""
+                      turn.speaker === "Agent" ? "flex-row-reverse" : ""
                     }`}
                   >
                     <div
                       className={`flex size-8 shrink-0 items-center justify-center rounded-full ${
-                        turn.turn === "User"
+                        turn.speaker === "User"
                           ? "bg-muted"
                           : "bg-primary text-primary-foreground"
                       }`}
                     >
-                      {turn.turn === "User" ? (
+                      {turn.speaker === "User" ? (
                         <IconUser className="size-4" />
                       ) : (
                         <IconRobot className="size-4" />
@@ -106,16 +106,16 @@ function CallRow({ call }: { call: CallHistoryEntry }) {
                     </div>
                     <div
                       className={`max-w-[80%] rounded-lg px-4 py-2.5 ${
-                        turn.turn === "User"
+                        turn.speaker === "User"
                           ? "bg-muted"
                           : "bg-primary/10"
                       }`}
                     >
                       <div className="mb-1 flex items-center gap-2">
                         <span className="text-xs font-medium">
-                          {turn.turn}
+                          {turn.speaker}
                         </span>
-                        {turn.audio && turn.audio !== "#" && (
+                        {turn.audio_url && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -127,20 +127,6 @@ function CallRow({ call }: { call: CallHistoryEntry }) {
                         )}
                       </div>
                       <p className="text-sm">{turn.text}</p>
-                      {turn.agentHistory &&
-                        turn.agentHistory.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {turn.agentHistory.map((action, i) => (
-                              <Badge
-                                key={i}
-                                variant="secondary"
-                                className="text-xs font-mono"
-                              >
-                                {action}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
                     </div>
                   </div>
                 ))}
@@ -153,7 +139,7 @@ function CallRow({ call }: { call: CallHistoryEntry }) {
   )
 }
 
-export function CallHistoryTable({ calls }: { calls: CallHistoryEntry[] }) {
+export function CallHistoryTable({ calls }: { calls: CallHistoryEntryWithTurns[] }) {
   return (
     <Card>
       <CardHeader>
@@ -163,24 +149,30 @@ export function CallHistoryTable({ calls }: { calls: CallHistoryEntry[] }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="w-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10" />
-                <TableHead>Date</TableHead>
-                <TableHead>Time</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Summary</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {calls.map((call) => (
-                <CallRow key={call.id} call={call} />
-              ))}
-            </TableBody>
-          </Table>
-        </ScrollArea>
+        {calls.length === 0 ? (
+          <p className="py-8 text-center text-muted-foreground">
+            No call history yet. Calls will appear here once your agents start handling them.
+          </p>
+        ) : (
+          <ScrollArea className="w-full">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10" />
+                  <TableHead>Date</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Duration</TableHead>
+                  <TableHead>Summary</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {calls.map((call) => (
+                  <CallRow key={call.id} call={call} />
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        )}
       </CardContent>
     </Card>
   )
