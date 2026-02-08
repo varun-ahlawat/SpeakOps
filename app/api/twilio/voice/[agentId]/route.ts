@@ -13,13 +13,16 @@ export async function POST(
 ) {
   const agentId = params.agentId
 
+  console.log(`[Twilio Webhook] Incoming call for agent: ${agentId}`)
+
   // Verify agent exists
   const agents = await query(
-    `SELECT id, name FROM ${table("agents")} WHERE id = @agentId LIMIT 1`,
+    `SELECT id, name, context FROM ${table("agents")} WHERE id = @agentId LIMIT 1`,
     { agentId }
   )
 
   if (agents.length === 0) {
+    console.log(`[Twilio Webhook] Agent not found: ${agentId}`)
     return new NextResponse(
       `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -38,6 +41,15 @@ export async function POST(
   const callSid = formData.get("CallSid") as string
   const from = formData.get("From") as string
   const to = formData.get("To") as string
+  const callStatus = formData.get("CallStatus") as string
+
+  console.log(`[Twilio Webhook] Call details:`, {
+    callSid,
+    from,
+    to,
+    callStatus,
+    agent: agents[0].name
+  })
 
   // Log call to BigQuery
   const callId = uuid()
@@ -46,16 +58,23 @@ export async function POST(
     agent_id: agentId,
     timestamp: new Date().toISOString(),
     duration_seconds: 0, // Will be updated on call end
-    summary: `Incoming call from ${from}`,
+    summary: `Incoming call from ${from} to ${agents[0].name}`,
   })
+
+  console.log(`[Twilio Webhook] Call logged to BigQuery: ${callId}`)
 
   // Return TwiML response
   // TODO: Integrate with AI agent for dynamic conversation
+  const agentName = agents[0].name
   const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">Hello! You've reached ${agents[0].name}. Please hold while we connect you to our AI assistant.</Say>
+  <Say voice="alice">Hello! You've reached ${agentName}.</Say>
   <Pause length="1"/>
-  <Say voice="alice">This is a demo response. Full AI integration coming soon.</Say>
+  <Say voice="alice">This is a test of the Twilio integration. Your call is being logged to the system.</Say>
+  <Pause length="1"/>
+  <Say voice="alice">Agent context: ${agents[0].context ? agents[0].context.substring(0, 100) : 'No context provided'}.</Say>
+  <Pause length="1"/>
+  <Say voice="alice">Thank you for testing. Full AI conversation coming soon. Goodbye!</Say>
   <Hangup/>
 </Response>`
 
