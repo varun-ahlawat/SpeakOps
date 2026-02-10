@@ -68,10 +68,7 @@ export async function POST(
 
     // Immediately return hold music so the caller doesn't hear silence
     const holdMusicUrl = `${appUrl}/api/twilio/hold-music`
-    return twimlResponse(
-      `<Say voice="alice">One moment please.</Say>
-  <Play loop="0">${holdMusicUrl}</Play>`
-    )
+    return twimlResponse(`<Play loop="0">${holdMusicUrl}</Play>`)
   } catch (err: any) {
     console.error(`[Respond] Error for call ${callId}:`, err)
     const respondUrl = `${appUrl}/api/twilio/voice/${agentId}/respond?callId=${callId}`
