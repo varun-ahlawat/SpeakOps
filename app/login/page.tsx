@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
-import { fetchAgents, createUser } from "@/lib/api-client"
+import { fetchAgents } from "@/lib/api-client"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -31,16 +31,7 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const firebaseUser = await signInWithGoogle()
-
-      try {
-        await createUser(
-          firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
-          firebaseUser.email || ""
-        )
-      } catch {
-        // 409 = already exists
-      }
+      await signInWithGoogle()
 
       const agents = await fetchAgents()
       router.push(agents.length > 0 ? "/dashboard" : "/create-agent")
